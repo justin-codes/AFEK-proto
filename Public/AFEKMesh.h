@@ -25,21 +25,10 @@ typedef NS_ENUM(NSUInteger, AFEKDataType)
     AFEKDataTypeFloat32 CF_SWIFT_NAME(float32) = 1 << 1,
 };
 
-// Options for specifying the integration method used when assembling
-// the stiffness terms.
-typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
-{
-    // Integrate using full Gaussian quadrature.
-    AFEKIntegrationMethodGaussFull CF_SWIFT_NAME(gaussFull) = 1,
-};
-
 /*
  *  AFEKMesh defines the object mesh.
  */
 @interface AFEKMesh : NSObject
-
-// The integration method currently being used by this mesh.
-@property (readonly, nonatomic) AFEKIntegrationMethod integrationMethod;
 
 // The number of elements in this mesh.
 @property (readonly, nonatomic) NSUInteger numberOfElements;
@@ -82,6 +71,10 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
  *      model           An object which conforms to AFEKModelSource2D that
  *                      defines the physical model used for the simulation.
  *
+ *      coefficientEvaluationFunction   A pointer to a function conforming to AFEKModelSource2DComputeCoefficients
+ *                                      which evaluates stiffness, internal force, and possibly incompressibility
+ *                                      coefficients for a given model.
+ *
  *      dataType        The data type to be used in the simulation.
  */
 -(nonnull instancetype) initWithElements: (NSUInteger const* __nonnull) elements
@@ -92,6 +85,18 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
                         numberOfElements: (NSUInteger) numberOfElements
                         numberOfVertices: (NSUInteger) numberOfVertices
                                    model: (const id<AFEKModelSource2D> __nonnull) model
+           coefficientEvaluationFunction: (AFEKModelSource2DComputeCoefficients __nonnull) coefficientEvaluationFunction
+                                dataType: (AFEKDataType) dataType;
+
+-(nonnull instancetype) initWithElements: (NSUInteger const* __nonnull) elements
+                           elementStride: (NSUInteger) elementStride
+                             elementType: (const id<AFEKElementSource2D> __nonnull) elementType
+                             coordinates: (double const* __nonnull) coordinates
+                                 normals: (double const* __nonnull) normals
+                        numberOfElements: (NSUInteger) numberOfElements
+                        numberOfVertices: (NSUInteger) numberOfVertices
+                                   model: (const id<AFEKModelSource2D> __nonnull) model
+           incompressibilityCoefficientEvaluationFunction: (AFEKModelSource2DComputeCoefficientsIncompressible __nonnull) coefficientEvaluationFunction
                                 dataType: (AFEKDataType) dataType;
 
 /*
@@ -146,6 +151,10 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
  *      model           An object which conforms to AFEKModelSource3D that
  *                      defines the physical model used for the simulation.
  *
+ *      coefficientEvaluationFunction   A pointer to a function conforming to AFEKModelSource3DComputeCoefficients
+ *                                      which evaluates stiffness, internal force, and possibly incompressibility
+ *                                      coefficients for a given model.
+ *
  *      dataType        The data type to be used in the simulation.
  */
 -(nonnull instancetype) initWithElements: (NSUInteger const* __nonnull) elements
@@ -155,8 +164,8 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
                         numberOfElements: (NSUInteger) numberOfElements
                         numberOfVertices: (NSUInteger) numberOfVertices
                                    model: (const id<AFEKModelSource3D> __nonnull) model
+           coefficientEvaluationFunction: (AFEKModelSource3DComputeCoefficients __nonnull) coefficientEvaluationFunction
                                 dataType: (AFEKDataType) dataType;
-
 -(nonnull instancetype) initWithElements: (NSUInteger const* __nonnull) elements
                            elementStride: (NSUInteger) elementStride
                              elementType: (const id<AFEKElementSource3D> __nonnull) elementType
@@ -164,7 +173,7 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
                         numberOfElements: (NSUInteger) numberOfElements
                         numberOfVertices: (NSUInteger) numberOfVertices
                                    model: (const id<AFEKModelSource3D> __nonnull) model
-           coefficientEvaluationFunction: (AFEKModelSource3DComputeCoefficients __nonnull) coefficientEvaluationFunction
+           incompressibleCoefficientEvaluationFunction: (AFEKModelSource3DComputeCoefficientsIncompressible __nonnull) coefficientEvaluationFunction
                                 dataType: (AFEKDataType) dataType;
 
 /*
@@ -238,42 +247,32 @@ typedef NS_ENUM(NSUInteger, AFEKIntegrationMethod)
 -(void) setErrorBuffer: (id<MTLBuffer> __nullable) errorBuffer
                 offset: (NSUInteger) offset;
 
--(void) setDisplacementBuffer: (id<MTLBuffer> __nullable) displacementBuffer;
+-(void) setDisplacementBuffer: (id<MTLBuffer> __nullable) displacementBuffer
+                       offset: (NSUInteger) offset;
 
-//-(NSUInteger) sizeForElements: (NSUInteger const* __nonnull) elements
-//                elementStride: (NSUInteger) elementStride
-//                  elementType: (const id<AFEKElementSource> __nonnull) elementType
-//             numberOfElements: (NSUInteger) numberOfElements
-//             numberOfVertices: (NSUInteger) numberOfVertices
-//                     dataType: (AFEKDataType) dataType
-//                       device: (id<MTLDevice> __nonnull) device;
+-(void) encodeApplyPointForce: (id<MTLBuffer> __nonnull) force
+                  forceOffset: (NSUInteger) forceOffset
+           elementAndLocation: (id<MTLBuffer>) elementAndLocation
+     elementAndLocationOffset: (NSUInteger) elementAndLocationOffset
+              predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
+              predicateOffset: (NSUInteger) predicateOffset
+                commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
 
-// TODO: Use below method as not only is the predicate possibly determined
-// via GPU feedback but the force as well.  Possibly location, etc, as well?
--(void) encodeApplyForce: (vector_double3) force
-                 element: (NSUInteger) element
-                location: (vector_double3) location
-         predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
-         predicateOffset: (NSUInteger) predicateOffset
-           commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
+-(void) encodeApplySurfaceForce: (id<MTLBuffer> __nonnull) force
+                    forceOffset: (NSUInteger) forceOffset
+                 elementAndFace: (id<MTLBuffer>) elementAndFace
+           elementAndFaceOffset: (NSUInteger) elementOffset
+                predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
+                predicateOffset: (NSUInteger) predicateOffset
+                  commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
 
-
-
-//-(void) encodeApplyPointForce: (id<MTLBuffer> __nonnull) force
-//             forceOffset: (NSUInteger) forceOffset
-//                 element: (NSUInteger) element
-//                location: (vector_double3) location
-//         predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
-//         predicateOffset: (NSUInteger) predicateOffset
-//           commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
-
-//-(void) encodeApplySurfaceForce: (id<MTLBuffer> __nonnull) force
-//             forceOffset: (NSUInteger) forceOffset
-//                 element: (NSUInteger) element
-//                face: (NSUInteger) face
-//         predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
-//         predicateOffset: (NSUInteger) predicateOffset
-//           commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
+-(void) encodeApplyVolumeForce: (id<MTLBuffer> __nonnull) force
+                    forceOffset: (NSUInteger) forceOffset
+                       element: (id<MTLBuffer>) elementAndFace
+                       element: (NSUInteger) elementOffset
+                predicateBuffer: (id<MTLBuffer> __nullable) predicateBuffer
+                predicateOffset: (NSUInteger) predicateOffset
+                  commandBuffer: (id<MTLCommandBuffer> __nonnull) commandBuffer;
 
 -(void) encodeMaximumIterations: (NSUInteger) maximumIterations
                  errorThreshold: (id<MTLBuffer> __nullable) errorThreshold

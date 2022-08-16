@@ -46,11 +46,6 @@ extern "C" {
 -(bool) isShapeCoefficientNonZeroAtIndex: (NSUInteger) index;
 
 /*
- *  If incompressible, return an incompressibility factor K where p = K * (deltaV - 1).
- */
--(double) kappa;
-
-/*
  *  Methods to support GPU execution.
  */
 /*
@@ -82,112 +77,6 @@ extern "C" {
 @protocol AFEKModelSource3D <AFEKModelSource>
 
 @optional
-
-/*
- *  Given vectors u, du_dz1, du_dz2, du_dz3 where u is a vector of displacements
- *  for each degree of freedom.  z1, z2, and z3 are element local coordinate
- *  axes, and du_dz1, du_dz2, du_dz3 are derivatives of the displacements with
- *  respect to each of those directions respectively.  The i'th generalized
- *  displacement corresponds to the variable whose virtual displacement
- *  appeared multiplied against the i'th coefficient in the virtual work
- *  expression.
- *
- *  This method should return force and stiffness coefficients.
- *
- *  Force coefficients are returned in a 3 dimensional array of size
- *  4 x numPoints x degreesOfFreedom.  The 4 numPoints x degreesOfFreedom slices
- *  are densley packed together and have a stride between rows given by
- *  forceCoefficientsStride.  The order of these 4 slices corresponds to how
- *  the final force result is composed with the shape function values.  Slice 0
- *  is combined with shape values, whereas slices 1, 2, and 3 correspond to
- *  derivatives of shape values with respect to element local coordinates z1
- *  ,z2, and z3 respectively.
- *
- *  Stiffness coefficients are returned in a 5 dimensional array of size
- *  4 x 4 x numPoints x degreesOfFreedom x degreesOfFreedom.  Each
- *  numPoints x degreesOfFreedom x degreesOfFreedom array is regarded as
- *  flattened into a numPoints x (degreesOfFreedom**2) array with a stride
- *  between rows of stiffnessCoefficientsStride.  Consider this result as
- *  a 2 dimensional 4 x 4 array where each entry represents the flattened
- *  numPoints x (degreesOfFreedom**2) array.  Each entry is thus combined with
- *  products of shape values such that the i,j'th coefficient corresponds to
- *  the product of dS_dzi and dS_dzj, where S is the shape function and zi and
- *  zj are the local surface coordinates.  dS_dz0 is taken to be S itself.
- *
- *  All arrays are sized to hold data for numTotalPoints.  startPoint and
- *  numPoints represent the subset of points at which to compute results.
- *
- *  If a non-null state is provided it has been constructed with information
- *  from numTotalPoints.
- *
- *  Inputs:
- *      displacements           The vector of displacements, u.  The order of
- *                              generalized displacements in this vector is
- *                              consistent with the order that coefficients are
- *                              written to the result coefficient arrays, i.e.
- *                              u[i] corresponds to the i'th column of any
- *                              slice of the force coefficients array.
- *
- *      localDiffDisplacements1 The vector of derivative of displacements with
- *                              respect to the first surface coordinate, du_dz1.
- *
- *      localDiffDisplacements2 The vector of derivative of displacements with
- *                              respect to the second surface coordinate, du_dz2.
- *
- *      localDiffDisplacements3 The vector of derivative of displacements with
- *                              respect to the third surface coordinate, du_dz3.
- *
- *      displacementsStride     The stride between rows of the displacement
- *                              vectors.
- *
- *      forceCoefficients       Pointer to the beginning of the array of force
- *                              coefficients.
- *
- *      forceCoefficientsStride The stride between rows of forceCoefficients.
- *
- *      stiffnessCoefficients   Pointer to the beginning of the array of
- *                              stiffness coefficients.
- *
- *      stiffnessCoefficientsStride The stride between rows of stiffnessCoefficients.
- *
- *      state                   If non-null a state containing some
- *                              pre-computed data corresponding to the same
- *                              points as the displacements.
- *
- *      numTotalPoints          The total number of points for which the
- *                              displacements are supplied.  Also the number of
- *                              points which can be held by the result arrays
- *                              and the number of points at which the state
- *                              has been prepared.
- *
- *      startPoint              The index of the first point at which to begin
- *                              reading data and at which to begin writing
- *                              results.
- *
- *      numPoints               The number of points whose results are to be
- *                              computed.
- *
- *  Output:
- *
- *      Upon return forceCoefficients and stiffnessCoefficients will contain
- *      the computed results beginning at startPoint.
- */
-// TODO: Move to function pointer, see below.  As a fcn ptr, reduces risk
-// of user referencing state not contained in the actual state.
--(void) computeCoefficientsFromDisplacements: (double const* __nonnull) displacements
-                     localDiffDisplacements1: (double const* __nonnull) localDiffDisplacements1
-                     localDiffDisplacements2: (double const* __nonnull) localDiffDisplacements2
-                     localDiffDisplacements3: (double const* __nonnull) localDiffDisplacements3
-                         displacementsStride: (NSUInteger) displacementsStride
-                           forceCoefficients: (double* __nonnull) forceCoefficients
-                     forceCoefficientsStride: (NSUInteger) forceCoefficientsStride
-                       stiffnessCoefficients: (double* __nonnull) stiffnessCoefficients
-                 stiffnessCoefficientsStride: (NSUInteger) stiffnessCoefficientsStride
-                                       state: (nullable id) state
-                              numTotalPoints: (NSUInteger) numTotalPoints
-                                  startPoint: (NSUInteger) startPoint
-                                   numPoints: (NSUInteger) numPoints;
-
 /*
  *  Compute applied force values at a point with a specified coordinate and
  *  local derivatives of that coordinate.
@@ -265,20 +154,6 @@ extern "C" {
                    localDiffCoordinates3: (vector_double3 const* __nonnull) localDiffCoordinates3
                          numberOfPoints: (NSUInteger) numberOfPoints
                                 heap: (id<MTLHeap> __nullable) heap;
-
--(void) computeFloatCoefficientsFromDisplacements: (float const* __nonnull) displacements
-                    localDiffDisplacements1: (float const* __nonnull) localDiffDisplacements1
-                    localDiffDisplacements2: (float const* __nonnull) localDiffDisplacements2
-                    localDiffDisplacements3: (float const* __nonnull) localDiffDisplacements3
-                        displacementsStride: (NSUInteger) displacementsStride
-                          forceCoefficients: (float* __nonnull) forceCoefficients
-                    forceCoefficientsStride: (NSUInteger) forceCoefficientsStride
-                      stiffnessCoefficients: (float* __nonnull) stiffnessCoefficients
-                stiffnessCoefficientsStride: (NSUInteger) stiffnessCoefficientsStride
-                                      state: (nullable id) state
-                             numTotalPoints: (NSUInteger) numTotalPoints
-                                 startPoint: (NSUInteger) startPoint
-                                  numPoints: (NSUInteger) numPoints;
 @end    // AFEKModelSource3D
 
 /*
@@ -287,106 +162,6 @@ extern "C" {
 @protocol AFEKModelSource2D <AFEKModelSource>
 
 @optional
-
-/*
- *  Given vectors u, du_dz1, du_dz2 where u is a vector of displacements for
- *  each degree of freedom.  z1 and z2 are surface local curvilinear coordinate
- *  axes, and du_dz1 and du_dz2 are derivatives of the displacements with
- *  respect to each of those directions respectively.  The i'th generalized
- *  displacement corresponds to the variable whose virtual displacement
- *  appeared multiplied against the i'th coefficient in the virtual work
- *  expression.
- *
- *  This method should return force and stiffness coefficients.
- *
- *  Force coefficients are returned in a 3 dimensional array of size
- *  3 x numPoints x degreesOfFreedom.  The 3 numPoints x degreesOfFreedom slices
- *  are densley packed together and have a stride between rows given by
- *  forceCoefficientsStride.  The order of these 3 slices corresponds to how
- *  the final force result is composed with the shape function values.  Slice 0
- *  is combined with shape values, whereas slices 1 and 2 correspond to
- *  derivatives of shape values with respect to surface local coordinates z1
- *  and z2 respectively.
- *
- *  Stiffness coefficients are returned in a 5 dimensional array of size
- *  3 x 3 x numPoints x degreesOfFreedom x degreesOfFreedom.  Each
- *  numPoints x degreesOfFreedom x degreesOfFreedom array is regarded as
- *  flattened into a numPoints x (degreesOfFreedom**2) array with a stride
- *  between rows of stiffnessCoefficientsStride.  Consider this result as
- *  a 2 dimensional 3 x 3 array where each entry represents the flattened
- *  numPoints x (degreesOfFreedom**2) array.  Each entry is thus combined with
- *  products of shape values such that the i,j'th coefficient corresponds to
- *  the product of dS_dzi and dS_dzj, where S is the shape function and zi and
- *  zj are the local surface coordinates.  dS_dz0 is taken to be S itself.
- *
- *  All arrays are sized to hold data for numTotalPoints.  startPoint and
- *  numPoints represent the subset of points at which to compute results.
- *
- *  If a non-null state is provided it has been constructed with information
- *  from numTotalPoints.
- *
- *  Inputs:
- *      displacements           The vector of displacements, u.  The order of
- *                              generalized displacements in this vector is
- *                              consistent with the order that coefficients are
- *                              written to the result coefficient arrays, i.e.
- *                              u[i] corresponds to the i'th column of any
- *                              slice of the force coefficients array.
- *
- *      localDiffDisplacements1 The vector of derivative of displacements with
- *                              respect to the first surface coordinate, du_dz1.
- *
- *      localDiffDisplacements2 The vector of derivative of displacements with
- *                              respect to the second surface coordinate, du_dz2.
- *
- *      displacementsStride     The stride between rows of the displacement
- *                              vectors.
- *
- *      forceCoefficients       Pointer to the beginning of the array of force
- *                              coefficients.
- *
- *      forceCoefficientsStride The stride between rows of forceCoefficients.
- *
- *      stiffnessCoefficients   Pointer to the beginning of the array of
- *                              stiffness coefficients.
- *
- *      stiffnessCoefficientsStride The stride between rows of stiffnessCoefficients.
- *
- *      state                   If non-null a state containing some
- *                              pre-computed data corresponding to the same
- *                              points as the displacements.
- *
- *      numTotalPoints          The total number of points for which the
- *                              displacements are supplied.  Also the number of
- *                              points which can be held by the result arrays
- *                              and the number of points at which the state
- *                              has been prepared.
- *
- *      startPoint              The index of the first point at which to begin
- *                              reading data and at which to begin writing
- *                              results.
- *
- *      numPoints               The number of points whose results are to be
- *                              computed.
- *
- *  Output:
- *
- *      Upon return forceCoefficients and stiffnessCoefficients will contain
- *      the computed results beginning at startPoint.
- */
--(void) computeCoefficientsFromDisplacements: (double const* __nonnull) displacements
-                     localDiffDisplacements1: (double const* __nonnull) localDiffDisplacements1
-                     localDiffDisplacements2: (double const* __nonnull) localDiffDisplacements2
-                         displacementsStride: (NSUInteger) displacementsStride
-                           forceCoefficients: (double* __nonnull) forceCoefficients
-                     forceCoefficientsStride: (NSUInteger) forceCoefficientsStride
-                       stiffnessCoefficients: (double* __nonnull) stiffnessCoefficients
-                 stiffnessCoefficientsStride: (NSUInteger) stiffnessCoefficientsStride
-                                       state: (nullable id) state
-                              numTotalPoints: (NSUInteger) numTotalPoints
-                                  startPoint: (NSUInteger) startPoint
-                                   numPoints: (NSUInteger) numPoints;
-
 /*
  *  Compute applied force values at a point with a specified coordinate and
  *  local derivatives of that coordinate, as well as the surface normal
@@ -484,37 +259,98 @@ extern "C" {
                           numberOfPoints: (NSUInteger) numberOfPoints
                                     heap: (id<MTLHeap> __nullable) heap;
 
-// TODO: Temporary
-
--(void) computeFloatCoefficientsFromDisplacements: (float const* __nonnull) displacements
-                    localDiffDisplacements1: (float const* __nonnull) localDiffDisplacements1
-                    localDiffDisplacements2: (float const* __nonnull) localDiffDisplacements2
-                        displacementsStride: (NSUInteger) displacementsStride
-                          forceCoefficients: (float* __nonnull) forceCoefficients
-                    forceCoefficientsStride: (NSUInteger) forceCoefficientsStride
-                      stiffnessCoefficients: (float* __nonnull) stiffnessCoefficients
-                stiffnessCoefficientsStride: (NSUInteger) stiffnessCoefficientsStride
-                                      state: (nullable id) state
-                             numTotalPoints: (NSUInteger) numTotalPoints
-                                 startPoint: (NSUInteger) startPoint
-                                  numPoints: (NSUInteger) numPoints;
-
 @end    // AFEKModelSource2D
 
-// TODO: make function pointer type declaration.
-//-(void) AFEKModelSource3DComputeCoefficients(double const* __nonnull displacements,
-//                                             double const* __nonnull localDiffDisplacements1,
-//                                             double const* __nonnull localDiffDisplacements2,
-//                                             double const* __nonnull localDiffDisplacements3,
-//                                             NSUInteger displacementsStride,
-//                                             double* __nonnull forceCoefficients,
-//                                             NSUInteger forceCoefficientsStride,
-//                                             double* __nonnull stiffnessCoefficients,
-//                                             NSUInteger stiffnessCoefficientsStride,
-//                                             nullable id state,
-//                                             NSUInteger numTotalPoints,
-//                                             NSUInteger startPoint,
-//                                             NSUInteger numPoints);
+
+/*
+ *  Given vectors u, du_dz1, du_dz2, du_dz3 where u is a vector of displacements
+ *  for each degree of freedom.  z1, z2, and z3 are element local coordinate
+ *  axes, and du_dz1, du_dz2, du_dz3 are derivatives of the displacements with
+ *  respect to each of those directions respectively.  The i'th generalized
+ *  displacement corresponds to the variable whose virtual displacement
+ *  appeared multiplied against the i'th coefficient in the virtual work
+ *  expression.
+ *
+ *  This method should return force and stiffness coefficients.
+ *
+ *  Force coefficients are returned in a 3 dimensional array of size
+ *  4 x numPoints x degreesOfFreedom.  The 4 numPoints x degreesOfFreedom slices
+ *  are densley packed together and have a stride between rows given by
+ *  forceCoefficientsStride.  The order of these 4 slices corresponds to how
+ *  the final force result is composed with the shape function values.  Slice 0
+ *  is combined with shape values, whereas slices 1, 2, and 3 correspond to
+ *  derivatives of shape values with respect to element local coordinates z1
+ *  ,z2, and z3 respectively.
+ *
+ *  Stiffness coefficients are returned in a 5 dimensional array of size
+ *  4 x 4 x numPoints x degreesOfFreedom x degreesOfFreedom.  Each
+ *  numPoints x degreesOfFreedom x degreesOfFreedom array is regarded as
+ *  flattened into a numPoints x (degreesOfFreedom**2) array with a stride
+ *  between rows of stiffnessCoefficientsStride.  Consider this result as
+ *  a 2 dimensional 4 x 4 array where each entry represents the flattened
+ *  numPoints x (degreesOfFreedom**2) array.  Each entry is thus combined with
+ *  products of shape values such that the i,j'th coefficient corresponds to
+ *  the product of dS_dzi and dS_dzj, where S is the shape function and zi and
+ *  zj are the local surface coordinates.  dS_dz0 is taken to be S itself.
+ *
+ *  All arrays are sized to hold data for numTotalPoints.  startPoint and
+ *  numPoints represent the subset of points at which to compute results.
+ *
+ *  If a non-null state is provided it has been constructed with information
+ *  from numTotalPoints.
+ *
+ *  Inputs:
+ *      displacements           The vector of displacements, u.  The order of
+ *                              generalized displacements in this vector is
+ *                              consistent with the order that coefficients are
+ *                              written to the result coefficient arrays, i.e.
+ *                              u[i] corresponds to the i'th column of any
+ *                              slice of the force coefficients array.
+ *
+ *      localDiffDisplacements1 The vector of derivative of displacements with
+ *                              respect to the first surface coordinate, du_dz1.
+ *
+ *      localDiffDisplacements2 The vector of derivative of displacements with
+ *                              respect to the second surface coordinate, du_dz2.
+ *
+ *      localDiffDisplacements3 The vector of derivative of displacements with
+ *                              respect to the third surface coordinate, du_dz3.
+ *
+ *      displacementsStride     The stride between rows of the displacement
+ *                              vectors.
+ *
+ *      forceCoefficients       Pointer to the beginning of the array of force
+ *                              coefficients.
+ *
+ *      forceCoefficientsStride The stride between rows of forceCoefficients.
+ *
+ *      stiffnessCoefficients   Pointer to the beginning of the array of
+ *                              stiffness coefficients.
+ *
+ *      stiffnessCoefficientsStride The stride between rows of stiffnessCoefficients.
+ *
+ *      state                   If non-null a state containing some
+ *                              pre-computed data corresponding to the same
+ *                              points as the displacements.
+ *
+ *      numTotalPoints          The total number of points for which the
+ *                              displacements are supplied.  Also the number of
+ *                              points which can be held by the result arrays
+ *                              and the number of points at which the state
+ *                              has been prepared.
+ *
+ *      startPoint              The index of the first point at which to begin
+ *                              reading data and at which to begin writing
+ *                              results.
+ *
+ *      numPoints               The number of points whose results are to be
+ *                              computed.
+ *
+ *  Output:
+ *
+ *      Upon return forceCoefficients and stiffnessCoefficients will contain
+ *      the computed results beginning at startPoint.
+ */
 typedef void (*AFEKModelSource3DComputeCoefficients)(double const* __nonnull displacements,
                                                      double const* __nonnull localDiffDisplacements1,
                                                      double const* __nonnull localDiffDisplacements2,
@@ -529,36 +365,136 @@ typedef void (*AFEKModelSource3DComputeCoefficients)(double const* __nonnull dis
                                                      NSUInteger startPoint,
                                                      NSUInteger numPoints);
 
-
-//typedef void (*AFEKModelSource2DComputeCoefficients)(double const* __nonnull displacements,
-//                                                     double const* __nonnull localDiffDisplacements1,
-//                                                     double const* __nonnull localDiffDisplacements2,
-//                                                     NSUInteger displacementsStride,
-//                                                     double* __nonnull forceCoefficients,
-//                                                     NSUInteger forceCoefficientsStride,
-//                                                     double* __nonnull stiffnessCoefficients,
-//                                                     NSUInteger stiffnessCoefficientsStride,
-//                                                     void* __nonnull state,
-//                                                     NSUInteger numTotalPoints,
-//                                                     NSUInteger startPoint,
-//                                                     NSUInteger numPoints);
-//
 //Also return coefficients for the mean-dilation incompressibility terms.
-//typedef void (*AFEKModelSource3DComputeCoefficientsIncompressible)(double const* __nonnull displacements,
-//                                                     double const* __nonnull localDiffDisplacements1,
-//                                                     double const* __nonnull localDiffDisplacements2,
-//                                                     double const* __nonnull localDiffDisplacements3,
-//                                                     NSUInteger displacementsStride,
-//                                                     double* __nonnull forceCoefficients,
-//                                                     NSUInteger forceCoefficientsStride,
-//                                                     double* __nonnull stiffnessCoefficients,
-//                                                     NSUInteger stiffnessCoefficientsStride,
-//                                                                   double* __nonnull incompressibilityCoefficients,
-//                                                                   NSUInteger incompressibilityCoefficientsStride,
-//                                                     void* __nonnull state,
-//                                                     NSUInteger numTotalPoints,
-//                                                     NSUInteger startPoint,
-//                                                     NSUInteger numPoints);
+typedef void (*AFEKModelSource3DComputeCoefficientsIncompressible)(double const* __nonnull displacements,
+                                                                   double const* __nonnull localDiffDisplacements1,
+                                                                   double const* __nonnull localDiffDisplacements2,
+                                                                   double const* __nonnull localDiffDisplacements3,
+                                                                   NSUInteger displacementsStride,
+                                                                   double* __nonnull forceCoefficients,
+                                                                   NSUInteger forceCoefficientsStride,
+                                                                   double* __nonnull stiffnessCoefficients,
+                                                                   NSUInteger stiffnessCoefficientsStride,
+                                                                   double* __nonnull incompressibilityCoefficients,
+                                                                   NSUInteger incompressibilityCoefficientsStride,
+                                                                   void* __nonnull state,
+                                                                   NSUInteger numTotalPoints,
+                                                                   NSUInteger startPoint,
+                                                                   NSUInteger numPoints);
+
+/*
+ *  Given vectors u, du_dz1, du_dz2 where u is a vector of displacements for
+ *  each degree of freedom.  z1 and z2 are surface local curvilinear coordinate
+ *  axes, and du_dz1 and du_dz2 are derivatives of the displacements with
+ *  respect to each of those directions respectively.  The i'th generalized
+ *  displacement corresponds to the variable whose virtual displacement
+ *  appeared multiplied against the i'th coefficient in the virtual work
+ *  expression.
+ *
+ *  This method should return force and stiffness coefficients.
+ *
+ *  Force coefficients are returned in a 3 dimensional array of size
+ *  3 x numPoints x degreesOfFreedom.  The 3 numPoints x degreesOfFreedom slices
+ *  are densley packed together and have a stride between rows given by
+ *  forceCoefficientsStride.  The order of these 3 slices corresponds to how
+ *  the final force result is composed with the shape function values.  Slice 0
+ *  is combined with shape values, whereas slices 1 and 2 correspond to
+ *  derivatives of shape values with respect to surface local coordinates z1
+ *  and z2 respectively.
+ *
+ *  Stiffness coefficients are returned in a 5 dimensional array of size
+ *  3 x 3 x numPoints x degreesOfFreedom x degreesOfFreedom.  Each
+ *  numPoints x degreesOfFreedom x degreesOfFreedom array is regarded as
+ *  flattened into a numPoints x (degreesOfFreedom**2) array with a stride
+ *  between rows of stiffnessCoefficientsStride.  Consider this result as
+ *  a 2 dimensional 3 x 3 array where each entry represents the flattened
+ *  numPoints x (degreesOfFreedom**2) array.  Each entry is thus combined with
+ *  products of shape values such that the i,j'th coefficient corresponds to
+ *  the product of dS_dzi and dS_dzj, where S is the shape function and zi and
+ *  zj are the local surface coordinates.  dS_dz0 is taken to be S itself.
+ *
+ *  All arrays are sized to hold data for numTotalPoints.  startPoint and
+ *  numPoints represent the subset of points at which to compute results.
+ *
+ *  If a non-null state is provided it has been constructed with information
+ *  from numTotalPoints.
+ *
+ *  Inputs:
+ *      displacements           The vector of displacements, u.  The order of
+ *                              generalized displacements in this vector is
+ *                              consistent with the order that coefficients are
+ *                              written to the result coefficient arrays, i.e.
+ *                              u[i] corresponds to the i'th column of any
+ *                              slice of the force coefficients array.
+ *
+ *      localDiffDisplacements1 The vector of derivative of displacements with
+ *                              respect to the first surface coordinate, du_dz1.
+ *
+ *      localDiffDisplacements2 The vector of derivative of displacements with
+ *                              respect to the second surface coordinate, du_dz2.
+ *
+ *      displacementsStride     The stride between rows of the displacement
+ *                              vectors.
+ *
+ *      forceCoefficients       Pointer to the beginning of the array of force
+ *                              coefficients.
+ *
+ *      forceCoefficientsStride The stride between rows of forceCoefficients.
+ *
+ *      stiffnessCoefficients   Pointer to the beginning of the array of
+ *                              stiffness coefficients.
+ *
+ *      stiffnessCoefficientsStride The stride between rows of stiffnessCoefficients.
+ *
+ *      state                   If non-null a state containing some
+ *                              pre-computed data corresponding to the same
+ *                              points as the displacements.
+ *
+ *      numTotalPoints          The total number of points for which the
+ *                              displacements are supplied.  Also the number of
+ *                              points which can be held by the result arrays
+ *                              and the number of points at which the state
+ *                              has been prepared.
+ *
+ *      startPoint              The index of the first point at which to begin
+ *                              reading data and at which to begin writing
+ *                              results.
+ *
+ *      numPoints               The number of points whose results are to be
+ *                              computed.
+ *
+ *  Output:
+ *
+ *      Upon return forceCoefficients and stiffnessCoefficients will contain
+ *      the computed results beginning at startPoint.
+ */
+typedef void (*AFEKModelSource2DComputeCoefficients)(double const* __nonnull displacements
+                                                     double const* __nonnull localDiffDisplacements1,
+                                                     double const* __nonnull localDiffDisplacements2,
+                                                     NSUInteger                 displacementsStride,
+                                                     double* __nonnull          forceCoefficients,
+                                                     NSUInteger                 forceCoefficientsStride,
+                                                     double* __nonnull          stiffnessCoefficients,
+                                                     NSUInteger                 stiffnessCoefficientsStride,
+                                                     void* __nonnull            state,
+                                                     NSUInteger                 numTotalPoints,
+                                                     NSUInteger                 startPoint,
+                                                     NSUInteger                 numPoints);
+
+typedef void (*AFEKModelSource2DComputeCoefficientsIncomporessible)(double const* __nonnull displacements
+                                                                    double const* __nonnull localDiffDisplacements1,
+                                                                    double const* __nonnull localDiffDisplacements2,
+                                                                    NSUInteger                 displacementsStride,
+                                                                    double* __nonnull          forceCoefficients,
+                                                                    NSUInteger                 forceCoefficientsStride,
+                                                                    double* __nonnull          stiffnessCoefficients,
+                                                                    NSUInteger                 stiffnessCoefficientsStride,
+                                                                    double* __nonnull           incompressibilityCoefficients,
+                                                                    NSUInteger                  incompressibilityCoefficientsStride,
+                                                                    void* __nonnull            state,
+                                                                    NSUInteger                 numTotalPoints,
+                                                                    NSUInteger                 startPoint,
+                                                                    NSUInteger                 numPoints);
 
 #ifdef __cplusplus
 }
@@ -583,18 +519,44 @@ using AFEKModelSource3DComputeCoefficientsType = void(device float const*    dis
                                                       device float*          stiffnessCoefficients,
                                                       uint                   stiffnessCoefficientsStride,
                                                       uint                   stiffnessCoefficientsSliceStride,
+                                                      device float*          incompressibilityCoefficients,
+                                                      uint                   incompressibilityCoefficientsStride,
+                                                      uint                   incompressibilityCoefficientsSliceStride,
                                                       AFEKModelState         state,
                                                       uint                   numTotalPoints,
                                                       uint                   startPoint,
                                                       uint                   numPoints);
 
-// TODO: Change so exact function name isn't required, i.e. try to get the name
-// from the returned MTLFunction or similar...  Looks like use a visible function
-// table.  As this stands a given program can only have this defined once.
-[[visible]] void AFEKModelSource3DComputeCoefficients(device float const*    displacements,
+
+using AFEKModelSource3DComputeCoefficientsIncompressibilityType = void(device float const*    displacements,
+                                                                       device float const*    localDiffDisplacements1,
+                                                                       device float const*    localDiffDisplacements2,
+                                                                       device float const*    localDiffDisplacements3,
+                                                                       uint                   displacementsStride,
+                                                                       device float*          forceCoefficients,
+                                                                       uint                   forceCoefficientsStride,
+                                                                       uint                   forceCoefficientsSliceStride,
+                                                                       device float*          stiffnessCoefficients,
+                                                                       uint                   stiffnessCoefficientsStride,
+                                                                       uint                   stiffnessCoefficientsSliceStride,
+                                                                       device float*        incompressibilityCoefficients,
+                                                                       uint                 incompressibilityCoefficientsStride,
+                                                                       uint                 incompressibilityCoefficientsSliceStride,
+                                                                       AFEKModelState         state,
+                                                                       uint                   numTotalPoints,
+                                                                       uint                   startPoint,
+                                                                       uint                   numPoints);
+
+using AFEKModelSource3DComputeForceType = void(device float3 const*     coordinates,
+                                               device float3 const*     localDiffCoordinates1,
+                                               device float3 const*     localDiffCoordinates2,
+                                               device float3 const*     localDiffCoordinates3,
+                                               device float3 const*     appliedForce,
+                                               device float*            result);
+
+using AFEKModelSource2DComputeCoefficientsType = void(device float const*    displacements,
                                                       device float const*    localDiffDisplacements1,
                                                       device float const*    localDiffDisplacements2,
-                                                      device float const*    localDiffDisplacements3,
                                                       uint                   displacementsStride,
                                                       device float*          forceCoefficients,
                                                       uint                   forceCoefficientsStride,
@@ -602,10 +564,38 @@ using AFEKModelSource3DComputeCoefficientsType = void(device float const*    dis
                                                       device float*          stiffnessCoefficients,
                                                       uint                   stiffnessCoefficientsStride,
                                                       uint                   stiffnessCoefficientsSliceStride,
+                                                      device float*          incompressibilityCoefficients,
+                                                      uint                   incompressibilityCoefficientsStride,
+                                                      uint                   incompressibilityCoefficientsSliceStride,
                                                       AFEKModelState         state,
                                                       uint                   numTotalPoints,
                                                       uint                   startPoint,
                                                       uint                   numPoints);
+
+
+using AFEKModelSource2DComputeCoefficientsIncompressibilityType = void(device float const*    displacements,
+                                                                       device float const*    localDiffDisplacements1,
+                                                                       device float const*    localDiffDisplacements2,
+                                                                       uint                   displacementsStride,
+                                                                       device float*          forceCoefficients,
+                                                                       uint                   forceCoefficientsStride,
+                                                                       uint                   forceCoefficientsSliceStride,
+                                                                       device float*          stiffnessCoefficients,
+                                                                       uint                   stiffnessCoefficientsStride,
+                                                                       uint                   stiffnessCoefficientsSliceStride,
+                                                                       device float*        incompressibilityCoefficients,
+                                                                       uint                 incompressibilityCoefficientsStride,
+                                                                       uint                 incompressibilityCoefficientsSliceStride,
+                                                                       AFEKModelState         state,
+                                                                       uint                   numTotalPoints,
+                                                                       uint                   startPoint,
+                                                                       uint                   numPoints);
+
+using AFEKModelSource2DComputeForceType = void(device float3 const*     coordinates,
+                                               device float3 const*     localDiffCoordinates1,
+                                               device float3 const*     localDiffCoordinates2,
+                                               device float3 const*     appliedForce,
+                                               device float*            result);
 #endif  // __METAL_VERSION__
 
 #endif /* AFEKModel_h */
