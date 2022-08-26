@@ -46,6 +46,11 @@ extern "C" {
 -(bool) isShapeCoefficientNonZeroAtIndex: (NSUInteger) index;
 
 /*
+ *  The bulk modulus for modeling a nearly incompressible material.
+ */
+-(double) bulkModulus;
+
+/*
  *  Methods to support GPU execution.
  */
 /*
@@ -250,6 +255,14 @@ extern "C" {
                         localDiffNormals2: (vector_double3 const* __nonnull) localDiffNormals2
                            numberOfPoints: (NSUInteger) numberOfPoints;
 
+/*
+ *  Prepare state for GPU execution.
+ *
+ *  Inputs
+ *      ...
+ *
+ *      heap        A heap, of non-nil, from which to allocate resources.
+ */
 -(nullable id) prepareStateForCoordinates: (vector_double3 const* __nonnull) coordinates
                    localDiffCoordinates1: (vector_double3 const* __nonnull) localDiffCoordinates1
                    localDiffCoordinates2: (vector_double3 const* __nonnull) localDiffCoordinates2
@@ -503,6 +516,7 @@ typedef void (*AFEKModelSource2DComputeCoefficientsIncomporessible)(double const
 #else   // __METAL_VERSION__
 #include <AdaptableFiniteElementKit/AdaptableFiniteElementKit.h>
 
+// GPU execution methods.
 /*
  *  A Metal compute shader function to evaluate force and stiffness coefficients.
  */
